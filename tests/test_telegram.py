@@ -82,3 +82,27 @@ class TelegramTests(unittest.TestCase):
         with patch('telegram.api', side_effect=[{'id': 1}, {'status': 'member'}]):
             with self.assertRaises(telegram.DeliveryError):
                 telegram.check()
+
+    def test_saved_settings_persist_and_never_return_token(self):
+        token = '123456789:' + 'x' * 35  # Synthetic test credential.
+        public = telegram.save_settings({'token': token, 'chat_id': '@first_channel'})
+        self.assertTrue(public['token_saved'])
+        self.assertNotIn(token, json.dumps(public))
+        path = app.DATA / 'telegram-settings.json'
+        self.assertEqual(path.stat().st_mode & 0o777, 0o600)
+        telegram.configure_storage(app.DATA)
+        self.assertEqual(telegram.credentials(), (token, '@first_channel'))
+        telegram.save_settings({'token': '', 'chat_id': '@second_channel'})
+        self.assertEqual(telegram.credentials(), (token, '@second_channel'))
+        with patch('telegram.request.urlopen', return_value=io.BytesIO(b'{"ok":true,"result":{"message_id":44}}')) as fetch:
+            telegram.send('Hello', None, app.DATA)
+            self.assertIn(token, fetch.call_args.args[0].full_url)
+            self.assertEqual(json.loads(fetch.call_args.args[0].data)['chat_id'], '@second_channel')
+
+    def test_invalid_settings_leave_existing_settings_unchanged(self):
+        token = '123456789:' + 'x' * 35
+        telegram.save_settings({'token': token, 'chat_id': '@test_channel'})
+        for changes in ({'token':'bad','chat_id':'@test_channel'}, {'token':'','chat_id':'https://t.me/test_channel'}, {'token':123,'chat_id':'@test_channel'}):
+            with self.assertRaises(ValueError):
+                telegram.save_settings(changes)
+            self.assertEqual(telegram.credentials(), (token, '@test_channel'))

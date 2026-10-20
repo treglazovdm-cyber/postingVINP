@@ -54,7 +54,7 @@ $('#filter').onchange=render;
 $('#upload').onchange = async e => {
   const file = e.target.files[0]; if (!file) return;
   if (!file.size || file.size > 100*1024*1024) { feedback('Выберите непустой файл размером до 100 МБ.'); e.target.value=''; return; }
-  const submit = $('button[type=submit]'); submit.disabled=true;
+  const submit = $('#post-form button[type=submit]'); submit.disabled=true;
   feedback('Загружаем файл…');
   try {
     const result = await api('/api/media',{method:'POST',headers:{'X-Filename':encodeURIComponent(file.name)},body:file});
@@ -67,7 +67,7 @@ $('#post-form').onsubmit=async e => {
   const form = e.target, fields = new FormData(form);
   const platforms = fields.getAll('platform');
   if(!platforms.length) return feedback('Выберите хотя бы одну площадку.');
-  const button = $('button[type=submit]'); button.disabled=true;
+  const button = $('#post-form button[type=submit]'); button.disabled=true;
   try {
     await api('/api/posts',{method:'POST',headers:{'Content-Type':'application/json'},body:JSON.stringify({title:fields.get('title'),text:fields.get('text'),platforms,media_id:$('#media').value,scheduled_at:new Date(fields.get('date')).toISOString()})});
     form.reset(); feedback('Запись добавлена. Telegram отправит её по расписанию, если подключён.'); await refresh();
@@ -81,14 +81,32 @@ async function telegramStatus() {
   const data = await api('/api/telegram');
   $('#telegram-status').textContent = data.configured
     ? 'Telegram: настройки заданы. Проверьте подключение перед планированием. ВК пока не подключён.'
-    : 'Telegram не настроен: задайте токен бота и канал в файле .env на сервере. ВК пока не подключён.';
+    : 'Telegram не настроен: заполните настройки интеграции ниже. ВК пока не подключён.';
+  $('#telegram-chat').value = data.chat_id || '';
+  $('#telegram-token').required = !data.token_saved;
+  $('#telegram-token-hint').textContent = data.token_saved
+    ? 'Токен сохранён. Оставьте поле пустым, чтобы сохранить текущий, или введите новый.'
+    : 'Введите токен, выданный официальным @BotFather.';
 }
 $('#telegram-check').onclick = async () => {
-  const button = $('#telegram-check'); button.disabled = true;
+  const button = $('#telegram-check'); button.disabled = true; $('#telegram-save').disabled = true;
   try {
     const result = await api('/api/telegram/check', {method:'POST',body:'{}',headers:{'Content-Type':'application/json'}});
     $('#telegram-result').textContent = result.message;
   } catch(e) { $('#telegram-result').textContent = e.message; }
-  finally { button.disabled = false; }
+  finally { button.disabled = false; $('#telegram-save').disabled = false; }
 };
 telegramStatus().catch(e => { $('#telegram-status').textContent = e.message; });
+
+$('#telegram-form').onsubmit = async e => {
+  e.preventDefault();
+  const button = $('#telegram-save'); button.disabled = true;
+  $('#telegram-check').disabled = true;
+  try {
+    await api('/api/telegram/settings', {method:'POST', headers:{'Content-Type':'application/json'}, body:JSON.stringify({token:$('#telegram-token').value, chat_id:$('#telegram-chat').value})});
+    $('#telegram-token').value = '';
+    await telegramStatus();
+    $('#telegram-result').textContent = 'Настройки сохранены. Теперь проверьте подключение. Сообщения не отправлялись.';
+  } catch(e) { $('#telegram-result').textContent = e.message; }
+  finally { button.disabled = false; $('#telegram-check').disabled = false; }
+};

@@ -27,6 +27,7 @@ def connect():
 def initialize():
     DATA.mkdir(parents=True, exist_ok=True)
     (DATA / 'media').mkdir(exist_ok=True)
+    telegram.configure_storage(DATA)
     with connect() as db:
         db.executescript('''
         CREATE TABLE IF NOT EXISTS media (
@@ -87,7 +88,7 @@ def process_due(now=None):
             state, message, message_id = 'blocked', 'ВК: интеграция ещё не подключена.', None
             if platform == 'telegram':
                 if not telegram.configured():
-                    message = 'Telegram: публикация не отправлена — задайте токен бота и канал в настройках сервера.'
+                    message = 'Telegram: публикация не отправлена — задайте токен бота и канал в настройках интеграции.'
                 else:
                     try:
                         with connect() as db:
@@ -135,7 +136,10 @@ class Handler(BaseHTTPRequestHandler):
                 db.execute('SELECT 1 FROM posts LIMIT 1')
             return self.reply(200, {'status': 'ok', 'delivery_enabled': telegram.configured()})
         if path == '/api/telegram':
-            return self.reply(200, {'configured': telegram.configured()})
+            try:
+                return self.reply(200, telegram.public_settings())
+            except telegram.DeliveryError as exc:
+                return self.reply(500, {'error': str(exc)})
         if path == '/api/posts':
             with connect() as db:
                 posts = [dict(r) for r in db.execute('SELECT posts.*, media.name AS media_name FROM posts LEFT JOIN media ON media.id=posts.media_id ORDER BY scheduled_at')]
@@ -188,6 +192,15 @@ class Handler(BaseHTTPRequestHandler):
             payload = json.loads(self.rfile.read(size))
             if not isinstance(payload, dict):
                 raise ValueError('Ожидается объект JSON.')
+            if path == '/api/telegram/settings':
+                if self.headers.get('Content-Type', '').split(';')[0].strip() != 'application/json':
+                    return self.reply(415, {'error': 'Ожидается application/json.'})
+                try:
+                    return self.reply(200, telegram.save_settings(payload))
+                except OSError:
+                    return self.reply(500, {'error': 'Не удалось сохранить настройки. Проверьте доступ приложения к каталогу данных.'})
+                except telegram.DeliveryError as exc:
+                    return self.reply(500, {'error': str(exc)})
             if path == '/api/telegram/check':
                 try:
                     return self.reply(200, telegram.check())

@@ -6,7 +6,18 @@
 <main>
 <div class="intro"><div><p class="eyebrow">ВАШ КОНТЕНТ В ОДНОМ МЕСТЕ</p><h1>Планируйте. Создавайте.<br><em>Будьте на связи.</em></h1><p>Соберите публикации для всех своих площадок в один план.</p></div><div class="number">01<span>Первый шаг — идея</span></div></div>
 <aside class="notice" id="telegram-status">Telegram: проверяем настройки…</aside>
-<button type="button" id="telegram-check">Проверить подключение Telegram</button><p id="telegram-result" role="status"></p>
+<section class="integration" aria-labelledby="telegram-heading">
+<h2 id="telegram-heading">Настройки Telegram</h2>
+<p>Добавьте бота администратором канала с правом публикации сообщений.</p>
+<form id="telegram-form" autocomplete="off">
+<div class="integration-fields">
+<label>Токен бота<input id="telegram-token" type="password" autocomplete="new-password" maxlength="221" placeholder="Токен из @BotFather"><small id="telegram-token-hint">Токен нужен при первом подключении.</small></label>
+<label>Канал Telegram<input id="telegram-chat" type="text" required maxlength="64" placeholder="@имя_канала или -100…"><small>Для публичного канала — @имя, для закрытого — числовой ID.</small></label>
+</div>
+<div class="integration-actions"><button type="submit" id="telegram-save">Сохранить настройки</button><button type="button" id="telegram-check">Проверить подключение Telegram</button></div>
+<small>Настройки хранятся на сервере. Токен после сохранения не отображается. Изменения действуют без перезапуска. Проверка использует сохранённые настройки.</small>
+</form><p id="telegram-result" role="status" aria-live="polite"></p>
+</section>
 <div class="workspace">
 <section class="editor"><h2>Новая публикация</h2><form id="post-form">
 <label>Название<input name="title" required maxlength="200" placeholder="Например, новый выпуск о мастерской"></label>

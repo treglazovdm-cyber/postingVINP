@@ -92,6 +92,21 @@ class PlannerTests(unittest.TestCase):
         self.assertIn('Контент-план'.encode(), body)
         self.assertEqual(self.request('GET', '/../../app.py')[0], 404)
 
+    def test_settings_api_redacts_token_and_rejects_cross_origin(self):
+        token = '123456789:' + 'z' * 35
+        payload = json.dumps({'token': token, 'chat_id': '@test_channel'})
+        status, body = self.request('POST', '/api/telegram/settings', payload, {'Content-Type': 'application/json'})
+        self.assertEqual(status, 200)
+        self.assertNotIn(token.encode(), body)
+        status, body = self.request('GET', '/api/telegram')
+        self.assertEqual(status, 200)
+        self.assertEqual(json.loads(body)['chat_id'], '@test_channel')
+        self.assertNotIn(token.encode(), body)
+        status, _ = self.request('POST', '/api/telegram/settings', payload, {'Origin': 'https://other.example', 'Content-Type': 'application/json'})
+        self.assertEqual(status, 403)
+        status, _ = self.request('POST', '/api/telegram/settings', payload, {'Content-Type': 'text/plain'})
+        self.assertEqual(status, 415)
+
 
 if __name__ == '__main__':
     unittest.main()

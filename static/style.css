@@ -2,3 +2,5 @@
 
 /* Keep longer labels and file names within narrow screens. */
 .editor,.plan{min-width:0}input,textarea,select{min-width:0}small{line-height:1.5;overflow-wrap:anywhere}footer{flex-wrap:wrap}.section-head select{max-width:100%}
+
+.integration{background:#fff;border:1px solid #dce1d6;border-radius:16px;padding:24px;margin-bottom:28px}.integration h2{margin-bottom:12px}.integration p{font-size:17px}.integration-fields{display:grid;grid-template-columns:1fr 1fr;gap:20px}.integration-actions{display:flex;flex-wrap:wrap;gap:12px;margin-bottom:14px}.integration-actions button{min-height:46px}.integration-actions button:disabled{opacity:.5;cursor:wait}@media(max-width:650px){.integration-fields{grid-template-columns:1fr;gap:0}.integration{padding:20px}.integration-actions button{width:100%}}
