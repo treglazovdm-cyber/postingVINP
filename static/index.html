@@ -1,0 +1,24 @@
+<!doctype html>
+<html lang="ru">
+<head><meta charset="utf-8"><meta name="viewport" content="width=device-width, initial-scale=1"><title>VINP · Контент-план</title><link rel="stylesheet" href="/style.css"><script src="/app.js" defer></script></head>
+<body>
+<header><a class="brand" href="/">VINP<span>studio</span></a><span class="pill">Локальное хранилище</span></header>
+<main>
+<div class="intro"><div><p class="eyebrow">ВАШ КОНТЕНТ В ОДНОМ МЕСТЕ</p><h1>Планируйте. Создавайте.<br><em>Будьте на связи.</em></h1><p>Соберите публикации для всех своих площадок в один план.</p></div><div class="number">01<span>Первый шаг — идея</span></div></div>
+<aside class="notice" id="telegram-status">Telegram: проверяем настройки…</aside>
+<button type="button" id="telegram-check">Проверить подключение Telegram</button><p id="telegram-result" role="status"></p>
+<div class="workspace">
+<section class="editor"><h2>Новая публикация</h2><form id="post-form">
+<label>Название<input name="title" required maxlength="200" placeholder="Например, новый выпуск о мастерской"></label>
+<label>Текст публикации<textarea name="text" maxlength="10000" rows="5" placeholder="О чём расскажем подписчикам?"></textarea></label>
+<fieldset><legend>Площадки</legend><div class="platforms"><label><input type="checkbox" name="platform" value="vk">ВКонтакте</label><label><input type="checkbox" name="platform" value="telegram">Telegram</label></div><small>YouTube и Instagram — на следующих этапах.</small></fieldset>
+<label>Медиафайл<select id="media"><option value="">Без файла</option></select></label>
+<label class="upload">Загрузить фото или видео <input type="file" id="upload" accept="image/*,video/*"><small>Один файл на публикацию · до 100 МБ; Telegram — до 49 МБ, фото до 10 МБ</small></label>
+<label>Дата и время<input type="datetime-local" name="date" required><small id="timezone"></small></label>
+<button type="submit" class="primary">Добавить в план <span>↗</span></button>
+<p id="feedback" role="status" aria-live="polite"></p>
+</form></section>
+<section class="plan"><div class="section-head"><h2>Контент-план</h2><select id="filter" aria-label="Фильтр статуса"><option value="all">Все записи</option><option value="scheduled">Запланированы</option><option value="blocked">Нужны аккаунты</option><option value="sent">Отправлены</option><option value="failed">Ошибка отправки</option><option value="partial">Отправлены частично</option><option value="cancelled">Отменены</option></select></div><div id="posts" aria-live="polite"></div></section>
+</div>
+<footer>VINP studio <span>Ваши файлы остаются в вашем хранилище.</span></footer>
+</main></body></html>
