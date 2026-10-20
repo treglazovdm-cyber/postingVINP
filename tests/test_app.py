@@ -145,6 +145,22 @@ class PlannerTests(unittest.TestCase):
         self.assertEqual(self.request('POST','/api/archive/'+post_id,'{}')[0],409)
         self.assertEqual(self.request('POST','/api/archive/missing','{}')[0],404)
 
+    def test_cancelled_post_can_be_archived_and_restored_without_publication(self):
+        post_id = app.create_post(self.payload())
+        self.assertEqual(self.request('POST','/api/cancel/'+post_id,'{}')[0],200)
+        with patch('telegram.api') as remote:
+            self.assertEqual(self.request('POST','/api/archive/'+post_id,'{}')[0],200)
+            app.initialize()
+            post = json.loads(self.request('GET','/api/posts')[1])[0]
+            self.assertEqual(post['status'],'cancelled')
+            self.assertTrue(post['archived_at'])
+            self.assertEqual(self.request('POST','/api/unarchive/'+post_id,'{}')[0],200)
+            app.process_due('2035-01-01T00:00:00+00:00')
+            remote.assert_not_called()
+        post = json.loads(self.request('GET','/api/posts')[1])[0]
+        self.assertEqual(post['status'],'cancelled')
+        self.assertIsNone(post['archived_at'])
+
 
 if __name__ == '__main__':
     unittest.main()

@@ -237,8 +237,8 @@ class Handler(BaseHTTPRequestHandler):
                         return self.reply(404, {'error': 'Запись не найдена.'})
                     if archive:
                         published = db.execute("SELECT 1 FROM deliveries WHERE post_id=? AND platform='telegram' AND status='sent' AND message_id IS NOT NULL", (post_id,)).fetchone()
-                        if not published or post['status'] == 'sending':
-                            return self.reply(409, {'error': 'В архив Telegram можно перенести только опубликованную запись.'})
+                        if (not published and post['status'] != 'cancelled') or post['status'] == 'sending':
+                            return self.reply(409, {'error': 'В архив можно перенести опубликованную или отменённую запись.'})
                         db.execute('UPDATE posts SET archived_at=COALESCE(archived_at,?) WHERE id=?', (datetime.now(timezone.utc).isoformat(),post_id))
                     else:
                         db.execute('UPDATE posts SET archived_at=NULL WHERE id=?', (post_id,))

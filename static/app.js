@@ -29,7 +29,7 @@ function render() {
   $('#planner-workspace').classList.toggle('archive-view', archiveView);
   const list = $('#posts'); list.replaceChildren();
   const visible = posts.filter(p => archiveView ? archived(p) : !archived(p) && ($('#filter').value === 'all' || p.status === $('#filter').value));
-  if (!visible.length) list.append(element('div',archiveView ? 'Архив пока пуст. Перенесите сюда опубликованные записи кнопкой «В архив Telegram».' : 'Нет записей для отображения. Добавьте публикацию или измените фильтр.','empty'));
+  if (!visible.length) list.append(element('div',archiveView ? 'Архив пока пуст. Перенесите сюда опубликованные или отменённые записи кнопкой «В архив Telegram».' : 'Нет записей для отображения. Добавьте публикацию или измените фильтр.','empty'));
   for (const post of visible) {
     const card = element('article', undefined, `card ${post.status}`);
     const date = element('time', new Date(post.scheduled_at).toLocaleString('ru-RU'));
@@ -51,7 +51,7 @@ function render() {
       }; card.append(cancel);
     }
     const sentTelegram = (post.deliveries || []).find(d => d.platform === 'telegram' && d.status === 'sent' && d.message_id);
-    if (sentTelegram) {
+    if (sentTelegram || post.status === 'cancelled') {
       const action = element('button', archived(post) ? 'Вернуть в журнал' : 'В архив Telegram'); action.type = 'button';
       const result = element('p', '', 'error'); result.setAttribute('role', 'status');
       action.onclick = async () => {
