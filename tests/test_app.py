@@ -190,6 +190,27 @@ class PlannerTests(unittest.TestCase):
         post = json.loads(self.request('GET','/api/posts')[1])[0]
         self.assertEqual(post['archives'],['telegram'])
 
+    def test_verified_connection_persists_and_resets_after_changes_or_error(self):
+        import telegram
+        token = '123456789:' + 'z'*35
+        telegram.save_settings({'token':token,'chat_id':'@test_channel'})
+        with patch('telegram.check',return_value={'ok':True,'message':'Проверено'}):
+            self.assertEqual(self.request('POST','/api/telegram/check','{}')[0],200)
+        app.initialize()
+        status = json.loads(self.request('GET','/api/telegram')[1])
+        self.assertEqual(status['connection_status'],'verified')
+        self.assertTrue(status['checked_at'])
+        self.assertNotIn(token,json.dumps(status))
+        with patch('telegram.check',side_effect=telegram.DeliveryError('Нет прав')):
+            self.assertEqual(self.request('POST','/api/telegram/check','{}')[0],400)
+        self.assertEqual(json.loads(self.request('GET','/api/telegram')[1])['connection_status'],'error')
+        telegram.save_settings({'token':'','chat_id':'@other_channel'})
+        self.assertEqual(json.loads(self.request('GET','/api/telegram')[1])['connection_status'],'unchecked')
+        app.record_telegram_check(app.telegram_fingerprint(),'verified')
+        with app.connect() as db:
+            db.execute("UPDATE integration_checks SET checked_at='2020-01-01T00:00:00+00:00'")
+        self.assertEqual(json.loads(self.request('GET','/api/telegram')[1])['connection_status'],'stale')
+
 
 if __name__ == '__main__':
     unittest.main()

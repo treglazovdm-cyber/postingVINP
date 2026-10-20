@@ -128,11 +128,23 @@ $('#post-form').onsubmit=async e => {
 Promise.all([refresh(),loadMedia()]).catch(e=>feedback(e.message));
 setInterval(()=>refresh().catch(e=>feedback(e.message)),15000);
 
+function paintConnection(data) {
+  const descriptions = {verified:['✓ Подключение проверено','verified'],error:['✕ Ошибка проверки','error'],unchecked:['○ Требуется проверка','neutral'],unconfigured:['○ Не подключено','neutral'],stale:['○ Проверьте повторно','neutral']};
+  const [label, style] = descriptions[data.connection_status] || descriptions.unchecked;
+  $('#telegram-status').textContent = data.connection_status === 'verified'
+    ? '✓ Telegram: подключение проверено. ВК пока не подключён.'
+    : `Telegram: ${label.replace(/^[^А-Яа-я]+/, '')}. ВК пока не подключён.`;
+  $('#telegram-badge').textContent = label;
+  $('#telegram-badge').className = `connection-badge ${style}`;
+  $('#telegram-checked-at').textContent = data.checked_at ? `Последняя проверка: ${new Date(data.checked_at).toLocaleString('ru-RU')}. Статус проверки действует 24 часа.` : '';
+}
+async function refreshConnection() {
+  try { paintConnection(await api('/api/telegram')); }
+  catch(e) { paintConnection({connection_status:'error'}); }
+}
 async function telegramStatus() {
   const data = await api('/api/telegram');
-  $('#telegram-status').textContent = data.configured
-    ? 'Telegram: настройки заданы. Проверьте подключение перед планированием. ВК пока не подключён.'
-    : 'Telegram не настроен: заполните настройки интеграции ниже. ВК пока не подключён.';
+  paintConnection(data);
   $('#telegram-chat').value = data.chat_id || '';
   $('#telegram-token').required = !data.token_saved;
   $('#telegram-token-hint').textContent = data.token_saved
@@ -145,7 +157,7 @@ $('#telegram-check').onclick = async () => {
     const result = await api('/api/telegram/check', {method:'POST',body:'{}',headers:{'Content-Type':'application/json'}});
     $('#telegram-result').textContent = result.message;
   } catch(e) { $('#telegram-result').textContent = e.message; }
-  finally { button.disabled = false; $('#telegram-save').disabled = false; }
+  finally { await refreshConnection(); button.disabled = false; $('#telegram-save').disabled = false; }
 };
 telegramStatus().catch(e => { $('#telegram-status').textContent = e.message; });
 
@@ -196,3 +208,11 @@ $('#vk-archive-tab').onclick = () => { location.hash = 'vk-archive'; };
 
 $('#integrations-tab').onclick = () => { location.hash = 'integrations'; };
 render();
+
+setInterval(refreshConnection,60000);
+for (const field of ['#telegram-token','#telegram-chat']) {
+  $(field).addEventListener('input', () => {
+    $('#telegram-badge').textContent = '○ Есть несохранённые изменения';
+    $('#telegram-badge').className = 'connection-badge neutral';
+  });
+}

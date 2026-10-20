@@ -1,5 +1,6 @@
 """Local content planner. Python 3.12+, no external dependencies."""
 import json
+import hashlib
 import os
 import sqlite3
 import threading
@@ -32,6 +33,9 @@ def initialize():
         db.executescript('''
         CREATE TABLE IF NOT EXISTS media (
           id TEXT PRIMARY KEY, name TEXT NOT NULL, size INTEGER NOT NULL);
+        CREATE TABLE IF NOT EXISTS integration_checks (
+          platform TEXT PRIMARY KEY, fingerprint TEXT NOT NULL,
+          status TEXT NOT NULL, checked_at TEXT NOT NULL);
         CREATE TABLE IF NOT EXISTS posts (
           id TEXT PRIMARY KEY, title TEXT NOT NULL, text TEXT NOT NULL,
           scheduled_at TEXT NOT NULL, platforms TEXT NOT NULL,
@@ -54,6 +58,28 @@ def initialize():
             for platform in json.loads(row['platforms']):
                 db.execute('INSERT OR IGNORE INTO post_archives VALUES (?,?,?)', (row['id'],platform,row['archived_at']))
         db.execute('UPDATE posts SET archived_at=NULL WHERE archived_at IS NOT NULL')
+
+
+def telegram_fingerprint():
+    return hashlib.sha256(json.dumps(telegram.credentials()).encode()).hexdigest()
+
+
+def telegram_settings():
+    settings = telegram.public_settings()
+    settings.update({'connection_status': 'unconfigured' if not settings['configured'] else 'unchecked', 'checked_at': None})
+    with connect() as db:
+        row = db.execute("SELECT * FROM integration_checks WHERE platform='telegram'").fetchone()
+    if settings['configured'] and row and row['fingerprint'] == telegram_fingerprint():
+        settings['checked_at'] = row['checked_at']
+        age = (datetime.now(timezone.utc) - datetime.fromisoformat(row['checked_at'])).total_seconds()
+        settings['connection_status'] = row['status'] if age < 86400 else 'stale'
+    return settings
+
+
+def record_telegram_check(fingerprint, status):
+    with connect() as db:
+        db.execute("INSERT OR REPLACE INTO integration_checks VALUES ('telegram',?,?,?)",
+                   (fingerprint, status, datetime.now(timezone.utc).isoformat()))
 
 
 def create_post(payload):
@@ -153,7 +179,7 @@ class Handler(BaseHTTPRequestHandler):
             return self.reply(200, {'status': 'ok', 'delivery_enabled': telegram.configured()})
         if path == '/api/telegram':
             try:
-                return self.reply(200, telegram.public_settings())
+                return self.reply(200, telegram_settings())
             except telegram.DeliveryError as exc:
                 return self.reply(500, {'error': str(exc)})
         if path == '/api/posts':
@@ -233,9 +259,15 @@ class Handler(BaseHTTPRequestHandler):
                 except telegram.DeliveryError as exc:
                     return self.reply(500, {'error': str(exc)})
             if path == '/api/telegram/check':
+                fingerprint = None
                 try:
-                    return self.reply(200, telegram.check())
+                    fingerprint = telegram_fingerprint()
+                    result = telegram.check()
+                    record_telegram_check(fingerprint, 'verified')
+                    return self.reply(200, result)
                 except telegram.DeliveryError as error:
+                    if fingerprint:
+                        record_telegram_check(fingerprint, 'error')
                     return self.reply(400, {'error': str(error)})
             if path == '/api/posts':
                 return self.reply(201, {'id': create_post(payload)})
