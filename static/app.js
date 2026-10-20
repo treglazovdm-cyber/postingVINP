@@ -15,10 +15,21 @@ function element(tag, text, cls) {
   return el;
 }
 function feedback(message) { $('#feedback').textContent = message; }
+function archived(post) { return Boolean(post.archived_at); }
 function render() {
+  const archiveView = location.hash === '#telegram-archive';
+  $('#archive-count').textContent = posts.filter(archived).length;
+  $('#plan-tab').setAttribute('aria-pressed', String(!archiveView));
+  $('#archive-tab').setAttribute('aria-pressed', String(archiveView));
+  $('#plan-heading').textContent = archiveView ? 'Архив Telegram' : 'Контент-план';
+  $('#archive-description').hidden = !archiveView;
+  $('#filter').hidden = archiveView;
+  $('#post-form').closest('.editor').hidden = archiveView;
+  $('.integration').hidden = archiveView;
+  $('#planner-workspace').classList.toggle('archive-view', archiveView);
   const list = $('#posts'); list.replaceChildren();
-  const visible = posts.filter(p => $('#filter').value === 'all' || p.status === $('#filter').value);
-  if (!visible.length) list.append(element('div','Здесь появятся ваши публикации. Добавьте первую запись в контент-план.','empty'));
+  const visible = posts.filter(p => archiveView ? archived(p) : !archived(p) && ($('#filter').value === 'all' || p.status === $('#filter').value));
+  if (!visible.length) list.append(element('div',archiveView ? 'Архив пока пуст. Перенесите сюда опубликованные записи кнопкой «В архив Telegram».' : 'Нет записей для отображения. Добавьте публикацию или измените фильтр.','empty'));
   for (const post of visible) {
     const card = element('article', undefined, `card ${post.status}`);
     const date = element('time', new Date(post.scheduled_at).toLocaleString('ru-RU'));
@@ -38,6 +49,21 @@ function render() {
         try { await api(`/api/cancel/${post.id}`,{method:'POST',body:'{}',headers:{'Content-Type':'application/json'}}); await refresh(); }
         catch(e) { feedback(e.message); }
       }; card.append(cancel);
+    }
+    const sentTelegram = (post.deliveries || []).find(d => d.platform === 'telegram' && d.status === 'sent' && d.message_id);
+    if (sentTelegram) {
+      const action = element('button', archived(post) ? 'Вернуть в журнал' : 'В архив Telegram'); action.type = 'button';
+      const result = element('p', '', 'error'); result.setAttribute('role', 'status');
+      action.onclick = async () => {
+        action.disabled = true;
+        try {
+          const operation = archived(post) ? 'unarchive' : 'archive';
+          await api(`/api/${operation}/${post.id}`, {method:'POST',headers:{'Content-Type':'application/json'},body:'{}'});
+          await refresh();
+        } catch(e) { result.textContent = e.message; }
+        finally { action.disabled = false; }
+      };
+      card.append(action, result);
     }
     list.append(card);
   }
@@ -136,3 +162,7 @@ $('#generate-cover').onclick = async () => {
   } catch(e) { $('#cover-result').textContent = e.message; }
   finally { button.disabled = false; }
 };
+
+$('#plan-tab').onclick = () => { location.hash = 'plan'; };
+$('#archive-tab').onclick = () => { location.hash = 'telegram-archive'; };
+window.addEventListener('hashchange', render);

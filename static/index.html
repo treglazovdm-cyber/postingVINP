@@ -6,6 +6,7 @@
 <main>
 <div class="intro"><div><p class="eyebrow">ВАШ КОНТЕНТ В ОДНОМ МЕСТЕ</p><h1>Планируйте. Создавайте.<br><em>Будьте на связи.</em></h1><p>Соберите публикации для всех своих площадок в один план.</p></div><div class="number">01<span>Первый шаг — идея</span></div></div>
 <aside class="notice" id="telegram-status">Telegram: проверяем настройки…</aside>
+<nav class="view-nav" aria-label="Разделы сервиса"><button type="button" id="plan-tab" aria-pressed="true">Контент-план</button><button type="button" id="archive-tab" aria-pressed="false">Архив Telegram <span id="archive-count">0</span></button></nav>
 <section class="integration" aria-labelledby="telegram-heading">
 <h2 id="telegram-heading">Настройки Telegram</h2>
 <p>Добавьте бота администратором канала с правом публикации сообщений.</p>
@@ -18,7 +19,7 @@
 <small>Настройки хранятся на сервере. Токен после сохранения не отображается. Изменения действуют без перезапуска. Проверка использует сохранённые настройки.</small>
 </form><p id="telegram-result" role="status" aria-live="polite"></p>
 </section>
-<div class="workspace">
+<div class="workspace" id="planner-workspace">
 <section class="editor"><h2>Новая публикация</h2><form id="post-form">
 <label>Название<input name="title" required maxlength="200" placeholder="Например, новый выпуск о мастерской"></label>
 <label>Текст публикации<textarea name="text" maxlength="10000" rows="5" placeholder="О чём расскажем подписчикам?"></textarea></label>
@@ -31,7 +32,7 @@
 <button type="submit" class="primary">Добавить в план <span>↗</span></button>
 <p id="feedback" role="status" aria-live="polite"></p>
 </form></section>
-<section class="plan"><div class="section-head"><h2>Контент-план</h2><select id="filter" aria-label="Фильтр статуса"><option value="all">Все записи</option><option value="scheduled">Запланированы</option><option value="blocked">Нужны аккаунты</option><option value="sent">Отправлены</option><option value="failed">Ошибка отправки</option><option value="partial">Отправлены частично</option><option value="cancelled">Отменены</option></select></div><div id="posts" aria-live="polite"></div></section>
+<section class="plan"><div class="section-head"><h2 id="plan-heading">Контент-план</h2><select id="filter" aria-label="Фильтр статуса"><option value="all">Все записи</option><option value="scheduled">Запланированы</option><option value="blocked">Нужны аккаунты</option><option value="sent">Отправлены</option><option value="failed">Ошибка отправки</option><option value="partial">Отправлены частично</option><option value="cancelled">Отменены</option></select></div><p id="archive-description" hidden>Архивные записи сервиса. Публикации в Telegram остаются на месте. Возврат в журнал не отправляет их повторно.</p><div id="posts" aria-live="polite"></div></section>
 </div>
 <footer>VINP studio <span>Ваши файлы остаются в вашем хранилище.</span></footer>
 </main></body></html>

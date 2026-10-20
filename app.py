@@ -44,6 +44,8 @@ def initialize():
         ''')
         if 'preview_mode' not in [row['name'] for row in db.execute('PRAGMA table_info(posts)')]:
             db.execute("ALTER TABLE posts ADD COLUMN preview_mode TEXT NOT NULL DEFAULT 'frame'")
+        if 'archived_at' not in [row['name'] for row in db.execute('PRAGMA table_info(posts)')]:
+            db.execute('ALTER TABLE posts ADD COLUMN archived_at TEXT')
 
 
 def create_post(payload):
@@ -226,6 +228,21 @@ class Handler(BaseHTTPRequestHandler):
                     return self.reply(400, {'error': str(error)})
             if path == '/api/posts':
                 return self.reply(201, {'id': create_post(payload)})
+            if path.startswith('/api/archive/') or path.startswith('/api/unarchive/'):
+                post_id = path.rsplit('/', 1)[-1]
+                archive = path.startswith('/api/archive/')
+                with connect() as db:
+                    post = db.execute('SELECT * FROM posts WHERE id=?', (post_id,)).fetchone()
+                    if not post:
+                        return self.reply(404, {'error': 'Запись не найдена.'})
+                    if archive:
+                        published = db.execute("SELECT 1 FROM deliveries WHERE post_id=? AND platform='telegram' AND status='sent' AND message_id IS NOT NULL", (post_id,)).fetchone()
+                        if not published or post['status'] == 'sending':
+                            return self.reply(409, {'error': 'В архив Telegram можно перенести только опубликованную запись.'})
+                        db.execute('UPDATE posts SET archived_at=COALESCE(archived_at,?) WHERE id=?', (datetime.now(timezone.utc).isoformat(),post_id))
+                    else:
+                        db.execute('UPDATE posts SET archived_at=NULL WHERE id=?', (post_id,))
+                return self.reply(200, {'archived': archive})
             if path.startswith('/api/cancel/'):
                 with connect() as db:
                     result = db.execute("UPDATE posts SET status='cancelled', message='' WHERE id=? AND status IN ('scheduled','blocked')", (path.rsplit('/', 1)[-1],))

@@ -3,6 +3,7 @@ import json
 import tempfile
 import threading
 import unittest
+from unittest.mock import patch
 from datetime import datetime, timedelta, timezone
 from pathlib import Path
 
@@ -117,6 +118,32 @@ class PlannerTests(unittest.TestCase):
         app.initialize()
         with app.connect() as db:
             self.assertEqual(db.execute('SELECT preview_mode FROM posts WHERE id=?',(post_id,)).fetchone()[0], 'text')
+
+    def test_archive_and_restore_preserve_telegram_post_without_api_calls(self):
+        post_id = app.create_post(self.payload())
+        with app.connect() as db:
+            db.execute("UPDATE posts SET status='sent',message='Telegram: отправлено.' WHERE id=?",(post_id,))
+            db.execute("INSERT INTO deliveries(post_id,platform,status,message_id) VALUES (?,'telegram','sent',42)",(post_id,))
+        with patch('telegram.api') as remote:
+            for _ in range(2):
+                self.assertEqual(self.request('POST','/api/archive/'+post_id,'{}')[0],200)
+            app.initialize()
+            post = json.loads(self.request('GET','/api/posts')[1])[0]
+            self.assertTrue(post['archived_at'])
+            self.assertEqual(post['status'],'sent')
+            self.assertEqual(post['deliveries'][0]['message_id'],42)
+            self.assertEqual(post['deliveries'][0]['status'],'sent')
+            self.assertEqual(self.request('POST','/api/unarchive/'+post_id,'{}')[0],200)
+            app.process_due('2035-01-01T00:00:00+00:00')
+            remote.assert_not_called()
+        post = json.loads(self.request('GET','/api/posts')[1])[0]
+        self.assertIsNone(post['archived_at'])
+        self.assertEqual(post['status'],'sent')
+
+    def test_unsent_post_cannot_be_archived(self):
+        post_id = app.create_post(self.payload())
+        self.assertEqual(self.request('POST','/api/archive/'+post_id,'{}')[0],409)
+        self.assertEqual(self.request('POST','/api/archive/missing','{}')[0],404)
 
 
 if __name__ == '__main__':
