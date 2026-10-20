@@ -17,10 +17,14 @@ function element(tag, text, cls) {
 function feedback(message) { $('#feedback').textContent = message; }
 function archived(post,platform='telegram') { return (post.archives || []).includes(platform); }
 function render() {
+  const integrationsView = location.hash === '#integrations';
+  $('#integrations-view').hidden = !integrationsView;
+  $('#planner-workspace').hidden = integrationsView;
+  $('#integrations-tab').setAttribute('aria-pressed', String(integrationsView));
   const archivePlatform = location.hash === '#vk-archive' ? 'vk' : 'telegram';
   const archiveView = ['#telegram-archive','#vk-archive'].includes(location.hash);
   $('#archive-count').textContent = posts.filter(p => archived(p,'telegram')).length;
-  $('#plan-tab').setAttribute('aria-pressed', String(!archiveView));
+  $('#plan-tab').setAttribute('aria-pressed', String(!archiveView && !integrationsView));
   $('#archive-tab').setAttribute('aria-pressed', String(archiveView && archivePlatform === 'telegram'));
   $('#vk-archive-tab').setAttribute('aria-pressed', String(archiveView && archivePlatform === 'vk'));
   $('#vk-archive-count').textContent = posts.filter(p => archived(p,'vk')).length;
@@ -28,7 +32,6 @@ function render() {
   $('#archive-description').hidden = !archiveView;
   $('#filter').hidden = archiveView;
   $('#post-form').closest('.editor').hidden = archiveView;
-  $('.integration').hidden = archiveView;
   $('#planner-workspace').classList.toggle('archive-view', archiveView);
   const archiveList = $('#posts'); archiveList.replaceChildren();
   archiveList.hidden = !archiveView;
@@ -190,3 +193,6 @@ $('#archive-tab').onclick = () => { location.hash = 'telegram-archive'; };
 window.addEventListener('hashchange', render);
 
 $('#vk-archive-tab').onclick = () => { location.hash = 'vk-archive'; };
+
+$('#integrations-tab').onclick = () => { location.hash = 'integrations'; };
+render();

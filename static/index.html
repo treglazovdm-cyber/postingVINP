@@ -5,8 +5,10 @@
 <header><a class="brand" href="/">VINP<span>studio</span></a><span class="pill">Локальное хранилище</span></header>
 <main>
 <div class="intro"><div><p class="eyebrow">ВАШ КОНТЕНТ В ОДНОМ МЕСТЕ</p><h1>Планируйте. Создавайте.<br><em>Будьте на связи.</em></h1><p>Соберите публикации для всех своих площадок в один план.</p></div><div class="number">01<span>Первый шаг — идея</span></div></div>
+<nav class="view-nav" aria-label="Разделы сервиса"><button type="button" id="plan-tab" aria-pressed="true">Контент-план</button><button type="button" id="archive-tab" aria-pressed="false">Архив Telegram <span id="archive-count">0</span></button><button type="button" id="vk-archive-tab" aria-pressed="false">Архив ВКонтакте <span id="vk-archive-count">0</span></button><button type="button" id="integrations-tab" aria-pressed="false">Интеграции</button></nav>
+<section id="integrations-view" aria-labelledby="integrations-heading" hidden>
+<h2 id="integrations-heading">Интеграции</h2>
 <aside class="notice" id="telegram-status">Telegram: проверяем настройки…</aside>
-<nav class="view-nav" aria-label="Разделы сервиса"><button type="button" id="plan-tab" aria-pressed="true">Контент-план</button><button type="button" id="archive-tab" aria-pressed="false">Архив Telegram <span id="archive-count">0</span></button><button type="button" id="vk-archive-tab" aria-pressed="false">Архив ВКонтакте <span id="vk-archive-count">0</span></button></nav>
 <section class="integration" aria-labelledby="telegram-heading">
 <h2 id="telegram-heading">Настройки Telegram</h2>
 <p>Добавьте бота администратором канала с правом публикации сообщений.</p>
@@ -18,6 +20,8 @@
 <div class="integration-actions"><button type="submit" id="telegram-save">Сохранить настройки</button><button type="button" id="telegram-check">Проверить подключение Telegram</button></div>
 <small>Настройки хранятся на сервере. Токен после сохранения не отображается. Изменения действуют без перезапуска. Проверка использует сохранённые настройки.</small>
 </form><p id="telegram-result" role="status" aria-live="polite"></p>
+</section>
+<p>ВКонтакте: подключение автоматической публикации пока недоступно.</p>
 </section>
 <div class="workspace" id="planner-workspace">
 <section class="editor"><h2>Новая публикация</h2><form id="post-form">
