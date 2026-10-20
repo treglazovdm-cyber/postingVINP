@@ -15,32 +15,53 @@ function element(tag, text, cls) {
   return el;
 }
 function feedback(message) { $('#feedback').textContent = message; }
-function archived(post) { return Boolean(post.archived_at); }
+function archived(post,platform='telegram') { return (post.archives || []).includes(platform); }
 function render() {
-  const archiveView = location.hash === '#telegram-archive';
-  $('#archive-count').textContent = posts.filter(archived).length;
+  const archivePlatform = location.hash === '#vk-archive' ? 'vk' : 'telegram';
+  const archiveView = ['#telegram-archive','#vk-archive'].includes(location.hash);
+  $('#archive-count').textContent = posts.filter(p => archived(p,'telegram')).length;
   $('#plan-tab').setAttribute('aria-pressed', String(!archiveView));
-  $('#archive-tab').setAttribute('aria-pressed', String(archiveView));
-  $('#plan-heading').textContent = archiveView ? 'Архив Telegram' : 'Контент-план';
+  $('#archive-tab').setAttribute('aria-pressed', String(archiveView && archivePlatform === 'telegram'));
+  $('#vk-archive-tab').setAttribute('aria-pressed', String(archiveView && archivePlatform === 'vk'));
+  $('#vk-archive-count').textContent = posts.filter(p => archived(p,'vk')).length;
+  $('#plan-heading').textContent = archiveView ? `Архив ${names[archivePlatform]}` : 'Контент-план';
   $('#archive-description').hidden = !archiveView;
   $('#filter').hidden = archiveView;
   $('#post-form').closest('.editor').hidden = archiveView;
   $('.integration').hidden = archiveView;
   $('#planner-workspace').classList.toggle('archive-view', archiveView);
-  const list = $('#posts'); list.replaceChildren();
-  const visible = posts.filter(p => archiveView ? archived(p) : !archived(p) && ($('#filter').value === 'all' || p.status === $('#filter').value));
-  if (!visible.length) list.append(element('div',archiveView ? 'Архив пока пуст. Перенесите сюда опубликованные или отменённые записи кнопкой «В архив Telegram».' : 'Нет записей для отображения. Добавьте публикацию или измените фильтр.','empty'));
-  for (const post of visible) {
+  const archiveList = $('#posts'); archiveList.replaceChildren();
+  archiveList.hidden = !archiveView;
+  $('#plan-columns').hidden = archiveView;
+  const items = [];
+  const statusFor = (post, platform) => (post.deliveries || []).find(d => d.platform === platform)?.status || post.status;
+  const archivePosts = posts.filter(p => archived(p,archivePlatform));
+  if (archiveView) {
+    if (!archivePosts.length) archiveList.append(element('div','Архив пока пуст. Перенесите сюда опубликованные или отменённые записи.','empty'));
+    archivePosts.forEach(post => items.push({post, list:archiveList, platform:archivePlatform}));
+  }
+  for (const platform of ['telegram','vk']) {
+    const list = $(`#${platform}-posts`); list.replaceChildren();
+    const candidates = posts.filter(p => !archived(p,platform) && p.platforms.includes(platform));
+    const visible = candidates.filter(p => $('#filter').value === 'all' || statusFor(p,platform) === $('#filter').value);
+    $(`#${platform}-count`).textContent = visible.length;
+    if (!visible.length) list.append(element('div',`Нет записей для ${names[platform]}. Выберите площадку при создании публикации или измените фильтр.`,'empty'));
+    if (!archiveView) visible.forEach(post => items.push({post,list,platform}));
+  }
+  for (const {post,list,platform} of items) {
     const card = element('article', undefined, `card ${post.status}`);
     const date = element('time', new Date(post.scheduled_at).toLocaleString('ru-RU'));
     date.dateTime = post.scheduled_at;
     card.append(date, element('h3',post.title), element('p',post.text));
     const tags = element('div',undefined,'tags');
     post.platforms.forEach(p => tags.append(element('span',names[p],'tag')));
-    tags.append(element('span',states[post.status] || post.status,'status')); card.append(tags);
+    const shownStatus = platform ? statusFor(post,platform) : post.status;
+    tags.append(element('span',states[shownStatus] || shownStatus,'status')); card.append(tags);
     if (post.media_name) card.append(element('p',`Файл: ${post.media_name}`));
-    if (post.message) card.append(element('p',post.message,'error'));
-    for (const delivery of post.deliveries || []) {
+    const platformDelivery = (post.deliveries || []).find(d => d.platform === platform);
+    if (platformDelivery?.message || (!platform && post.message)) card.append(element('p', platformDelivery?.message || post.message,'error'));
+    else if (!(post.deliveries || []).length && post.message) card.append(element('p',post.message,'error'));
+    for (const delivery of (post.deliveries || []).filter(d => !platform || d.platform === platform)) {
       card.append(element('p', `${names[delivery.platform]}: ${states[delivery.status] || delivery.status}${delivery.message_id ? ' · ID сообщения: ' + delivery.message_id : ''}`));
     }
     if (['scheduled','blocked'].includes(post.status)) {
@@ -50,21 +71,22 @@ function render() {
         catch(e) { feedback(e.message); }
       }; card.append(cancel);
     }
-    const sentTelegram = (post.deliveries || []).find(d => d.platform === 'telegram' && d.status === 'sent' && d.message_id);
-    if (sentTelegram || post.status === 'cancelled') {
-      const action = element('button', archived(post) ? 'Вернуть в журнал' : 'В архив Telegram'); action.type = 'button';
+    const published = (post.deliveries || []).find(d => d.platform === platform && d.status === 'sent' && d.message_id);
+    if (published || post.status === 'cancelled' || archived(post,platform)) {
+      const action = element('button', archived(post,platform) ? 'Вернуть в журнал' : `В архив ${names[platform]}`); action.type = 'button';
       const result = element('p', '', 'error'); result.setAttribute('role', 'status');
       action.onclick = async () => {
         action.disabled = true;
         try {
-          const operation = archived(post) ? 'unarchive' : 'archive';
-          await api(`/api/${operation}/${post.id}`, {method:'POST',headers:{'Content-Type':'application/json'},body:'{}'});
+          const operation = archived(post,platform) ? 'unarchive' : 'archive';
+          await api(`/api/${operation}/${post.id}`, {method:'POST',headers:{'Content-Type':'application/json'},body:JSON.stringify({platform})});
           await refresh();
         } catch(e) { result.textContent = e.message; }
         finally { action.disabled = false; }
       };
       card.append(action, result);
     }
+    if (platform && post.platforms.length > 1) card.append(element('small','Отмена действует на обе площадки. Перенос в архив — только на выбранную.'));
     list.append(card);
   }
 }
@@ -166,3 +188,5 @@ $('#generate-cover').onclick = async () => {
 $('#plan-tab').onclick = () => { location.hash = 'plan'; };
 $('#archive-tab').onclick = () => { location.hash = 'telegram-archive'; };
 window.addEventListener('hashchange', render);
+
+$('#vk-archive-tab').onclick = () => { location.hash = 'vk-archive'; };

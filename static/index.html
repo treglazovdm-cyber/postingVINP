@@ -6,7 +6,7 @@
 <main>
 <div class="intro"><div><p class="eyebrow">ВАШ КОНТЕНТ В ОДНОМ МЕСТЕ</p><h1>Планируйте. Создавайте.<br><em>Будьте на связи.</em></h1><p>Соберите публикации для всех своих площадок в один план.</p></div><div class="number">01<span>Первый шаг — идея</span></div></div>
 <aside class="notice" id="telegram-status">Telegram: проверяем настройки…</aside>
-<nav class="view-nav" aria-label="Разделы сервиса"><button type="button" id="plan-tab" aria-pressed="true">Контент-план</button><button type="button" id="archive-tab" aria-pressed="false">Архив Telegram <span id="archive-count">0</span></button></nav>
+<nav class="view-nav" aria-label="Разделы сервиса"><button type="button" id="plan-tab" aria-pressed="true">Контент-план</button><button type="button" id="archive-tab" aria-pressed="false">Архив Telegram <span id="archive-count">0</span></button><button type="button" id="vk-archive-tab" aria-pressed="false">Архив ВКонтакте <span id="vk-archive-count">0</span></button></nav>
 <section class="integration" aria-labelledby="telegram-heading">
 <h2 id="telegram-heading">Настройки Telegram</h2>
 <p>Добавьте бота администратором канала с правом публикации сообщений.</p>
@@ -32,7 +32,7 @@
 <button type="submit" class="primary">Добавить в план <span>↗</span></button>
 <p id="feedback" role="status" aria-live="polite"></p>
 </form></section>
-<section class="plan"><div class="section-head"><h2 id="plan-heading">Контент-план</h2><select id="filter" aria-label="Фильтр статуса"><option value="all">Все записи</option><option value="scheduled">Запланированы</option><option value="blocked">Нужны аккаунты</option><option value="sent">Отправлены</option><option value="failed">Ошибка отправки</option><option value="partial">Отправлены частично</option><option value="cancelled">Отменены</option></select></div><p id="archive-description" hidden>Опубликованные и отменённые записи сервиса. Публикации в Telegram остаются на месте. Возврат в журнал не отправляет их повторно.</p><div id="posts" aria-live="polite"></div></section>
+<section class="plan"><div class="section-head"><h2 id="plan-heading">Контент-план</h2><select id="filter" aria-label="Фильтр статуса"><option value="all">Все записи</option><option value="scheduled">Запланированы</option><option value="blocked">Нужны аккаунты</option><option value="sent">Отправлены</option><option value="failed">Ошибка отправки</option><option value="partial">Отправлены частично</option><option value="cancelled">Отменены</option></select></div><p id="archive-description" hidden>Опубликованные и отменённые записи выбранной площадки. Публикации в соцсети остаются на месте. Возврат в журнал не отправляет их повторно.</p><div class="plan-columns" id="plan-columns"><section class="platform-plan" aria-labelledby="telegram-plan-heading"><h3 id="telegram-plan-heading">Telegram <span id="telegram-count">0</span></h3><div id="telegram-posts" aria-live="polite"></div></section><section class="platform-plan" aria-labelledby="vk-plan-heading"><h3 id="vk-plan-heading">ВКонтакте <span id="vk-count">0</span></h3><small class="platform-note">Планирование доступно. Автоматическая отправка в ВК пока не подключена.</small><div id="vk-posts" aria-live="polite"></div></section></div><div id="posts" aria-live="polite" hidden></div></section>
 </div>
 <footer>VINP studio <span>Ваши файлы остаются в вашем хранилище.</span></footer>
 </main></body></html>

@@ -37,6 +37,9 @@ def initialize():
           scheduled_at TEXT NOT NULL, platforms TEXT NOT NULL,
           media_id TEXT REFERENCES media(id), status TEXT NOT NULL,
           message TEXT NOT NULL DEFAULT '');
+        CREATE TABLE IF NOT EXISTS post_archives (
+          post_id TEXT NOT NULL, platform TEXT NOT NULL, archived_at TEXT NOT NULL,
+          PRIMARY KEY(post_id,platform));
         CREATE TABLE IF NOT EXISTS deliveries (
           post_id TEXT NOT NULL, platform TEXT NOT NULL, status TEXT NOT NULL,
           message TEXT NOT NULL DEFAULT '', message_id INTEGER,
@@ -46,6 +49,11 @@ def initialize():
             db.execute("ALTER TABLE posts ADD COLUMN preview_mode TEXT NOT NULL DEFAULT 'frame'")
         if 'archived_at' not in [row['name'] for row in db.execute('PRAGMA table_info(posts)')]:
             db.execute('ALTER TABLE posts ADD COLUMN archived_at TEXT')
+        # Migrate the former shared archive once, preserving existing hidden entries.
+        for row in db.execute('SELECT id,platforms,archived_at FROM posts WHERE archived_at IS NOT NULL').fetchall():
+            for platform in json.loads(row['platforms']):
+                db.execute('INSERT OR IGNORE INTO post_archives VALUES (?,?,?)', (row['id'],platform,row['archived_at']))
+        db.execute('UPDATE posts SET archived_at=NULL WHERE archived_at IS NOT NULL')
 
 
 def create_post(payload):
@@ -155,6 +163,9 @@ class Handler(BaseHTTPRequestHandler):
                 post['platforms'] = json.loads(post['platforms'])
                 with connect() as db:
                     post['deliveries'] = [dict(r) for r in db.execute('SELECT platform,status,message,message_id FROM deliveries WHERE post_id=?', (post['id'],))]
+                    archives = [dict(r) for r in db.execute('SELECT platform,archived_at FROM post_archives WHERE post_id=?', (post['id'],))]
+                    post['archives'] = [r['platform'] for r in archives]
+                    post['archived_at'] = next((r['archived_at'] for r in archives if r['platform']=='telegram'), None)
             return self.reply(200, posts)
         if path == '/api/media':
             with connect() as db:
@@ -231,18 +242,23 @@ class Handler(BaseHTTPRequestHandler):
             if path.startswith('/api/archive/') or path.startswith('/api/unarchive/'):
                 post_id = path.rsplit('/', 1)[-1]
                 archive = path.startswith('/api/archive/')
+                platform = payload.get('platform', 'telegram')
+                if platform not in PLATFORMS:
+                    return self.reply(400, {'error': 'Неизвестная площадка.'})
                 with connect() as db:
                     post = db.execute('SELECT * FROM posts WHERE id=?', (post_id,)).fetchone()
                     if not post:
                         return self.reply(404, {'error': 'Запись не найдена.'})
+                    if platform not in json.loads(post['platforms']):
+                        return self.reply(409, {'error': 'Эта запись не относится к выбранной площадке.'})
                     if archive:
-                        published = db.execute("SELECT 1 FROM deliveries WHERE post_id=? AND platform='telegram' AND status='sent' AND message_id IS NOT NULL", (post_id,)).fetchone()
+                        published = db.execute("SELECT 1 FROM deliveries WHERE post_id=? AND platform=? AND status='sent' AND message_id IS NOT NULL", (post_id,platform)).fetchone()
                         if (not published and post['status'] != 'cancelled') or post['status'] == 'sending':
                             return self.reply(409, {'error': 'В архив можно перенести опубликованную или отменённую запись.'})
-                        db.execute('UPDATE posts SET archived_at=COALESCE(archived_at,?) WHERE id=?', (datetime.now(timezone.utc).isoformat(),post_id))
+                        db.execute('INSERT OR IGNORE INTO post_archives VALUES (?,?,?)', (post_id,platform,datetime.now(timezone.utc).isoformat()))
                     else:
-                        db.execute('UPDATE posts SET archived_at=NULL WHERE id=?', (post_id,))
-                return self.reply(200, {'archived': archive})
+                        db.execute('DELETE FROM post_archives WHERE post_id=? AND platform=?', (post_id,platform))
+                return self.reply(200, {'archived': archive, 'platform': platform})
             if path.startswith('/api/cancel/'):
                 with connect() as db:
                     result = db.execute("UPDATE posts SET status='cancelled', message='' WHERE id=? AND status IN ('scheduled','blocked')", (path.rsplit('/', 1)[-1],))

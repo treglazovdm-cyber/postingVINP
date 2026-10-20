@@ -161,6 +161,35 @@ class PlannerTests(unittest.TestCase):
         self.assertEqual(post['status'],'cancelled')
         self.assertIsNone(post['archived_at'])
 
+    def test_platform_archives_are_independent(self):
+        post_id = app.create_post(self.payload())
+        self.request('POST','/api/cancel/'+post_id,'{}')
+        with patch('telegram.api') as remote:
+            self.assertEqual(self.request('POST','/api/archive/'+post_id,'{"platform":"vk"}')[0],200)
+            app.initialize()
+            post = json.loads(self.request('GET','/api/posts')[1])[0]
+            self.assertEqual(post['archives'], ['vk'])
+            self.assertIsNone(post['archived_at'])
+            self.request('POST','/api/archive/'+post_id,'{"platform":"telegram"}')
+            self.request('POST','/api/unarchive/'+post_id,'{"platform":"vk"}')
+            app.initialize()
+            post = json.loads(self.request('GET','/api/posts')[1])[0]
+            self.assertEqual(post['archives'], ['telegram'])
+            self.assertEqual(post['status'],'cancelled')
+            remote.assert_not_called()
+
+    def test_legacy_archive_migration_does_not_rearchive_restored_platform(self):
+        post_id = app.create_post(self.payload())
+        with app.connect() as db:
+            db.execute("UPDATE posts SET status='cancelled',archived_at='2026-10-20T12:00:00+00:00' WHERE id=?", (post_id,))
+        app.initialize()
+        post = json.loads(self.request('GET','/api/posts')[1])[0]
+        self.assertEqual(set(post['archives']), {'vk','telegram'})
+        self.request('POST','/api/unarchive/'+post_id,'{"platform":"vk"}')
+        app.initialize()
+        post = json.loads(self.request('GET','/api/posts')[1])[0]
+        self.assertEqual(post['archives'],['telegram'])
+
 
 if __name__ == '__main__':
     unittest.main()
