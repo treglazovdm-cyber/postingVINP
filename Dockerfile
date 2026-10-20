@@ -4,6 +4,7 @@ RUN test -f /usr/share/fonts/truetype/dejavu/DejaVuSans-Bold.ttf || (apt-get upd
 WORKDIR /app
 COPY --chown=1000:1000 app.py ./
 COPY --chown=1000:1000 telegram.py ./
+COPY --chown=1000:1000 vk.py ./
 COPY --chown=1000:1000 video.py ./
 COPY --chown=1000:1000 static ./static
 ENV HOST=0.0.0.0 DATA_DIR=/data PYTHONDONTWRITEBYTECODE=1 PYTHONUNBUFFERED=1

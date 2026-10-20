@@ -21,7 +21,15 @@
 <small>Настройки хранятся на сервере. Токен после сохранения не отображается. Изменения действуют без перезапуска. Проверка использует сохранённые настройки.</small>
 </form><p id="telegram-result" role="status" aria-live="polite"></p>
 </section>
-<p><strong>ВКонтакте</strong> <span class="connection-badge neutral">○ Не подключено</span></p><p>Подключение автоматической публикации в ВК пока недоступно.</p>
+<section class="integration" aria-labelledby="vk-heading">
+<h2 id="vk-heading">Настройки ВКонтакте <span id="vk-badge" class="connection-badge neutral" role="status">○ Не проверено</span></h2><p id="vk-checked-at" class="check-time"></p><p id="vk-status"></p>
+<p>Нужен токен пользователя ВК, который является редактором или администратором сообщества. Права: wall для публикаций, photos и video для медиа. Ключ доступа сообщества не подходит.</p>
+<form id="vk-form" autocomplete="off"><div class="integration-fields">
+<label>Токен пользователя ВК<input id="vk-token" type="password" autocomplete="new-password" maxlength="2048" placeholder="Вставьте токен пользователя"><small id="vk-token-hint">Токен вводится только здесь, не в чат.</small></label>
+<label>ID сообщества<input id="vk-group" type="text" inputmode="numeric" required maxlength="25" placeholder="Например, 123456789"><small>Числовой ID без минуса; также можно вставить club123456789.</small></label>
+</div><div class="integration-actions"><button type="submit" id="vk-save">Сохранить настройки ВК</button><button type="button" id="vk-check">Проверить подключение ВК</button></div>
+<small>Токен хранится на сервере и не отображается после сохранения. Проверка использует сохранённые настройки и не публикует записи.</small></form><p id="vk-result" role="status" aria-live="polite"></p>
+</section>
 </section>
 <div class="workspace" id="planner-workspace">
 <section class="editor"><h2>Новая публикация</h2><form id="post-form">
@@ -36,7 +44,7 @@
 <button type="submit" class="primary">Добавить в план <span>↗</span></button>
 <p id="feedback" role="status" aria-live="polite"></p>
 </form></section>
-<section class="plan"><div class="section-head"><h2 id="plan-heading">Контент-план</h2><select id="filter" aria-label="Фильтр статуса"><option value="all">Все записи</option><option value="scheduled">Запланированы</option><option value="blocked">Нужны аккаунты</option><option value="sent">Отправлены</option><option value="failed">Ошибка отправки</option><option value="partial">Отправлены частично</option><option value="cancelled">Отменены</option></select></div><p id="archive-description" hidden>Опубликованные и отменённые записи выбранной площадки. Публикации в соцсети остаются на месте. Возврат в журнал не отправляет их повторно.</p><div class="plan-columns" id="plan-columns"><section class="platform-plan" aria-labelledby="telegram-plan-heading"><h3 id="telegram-plan-heading">Telegram <span id="telegram-count">0</span></h3><div id="telegram-posts" aria-live="polite"></div></section><section class="platform-plan" aria-labelledby="vk-plan-heading"><h3 id="vk-plan-heading">ВКонтакте <span id="vk-count">0</span></h3><small class="platform-note">Планирование доступно. Автоматическая отправка в ВК пока не подключена.</small><div id="vk-posts" aria-live="polite"></div></section></div><div id="posts" aria-live="polite" hidden></div></section>
+<section class="plan"><div class="section-head"><h2 id="plan-heading">Контент-план</h2><select id="filter" aria-label="Фильтр статуса"><option value="all">Все записи</option><option value="scheduled">Запланированы</option><option value="blocked">Нужны аккаунты</option><option value="sent">Отправлены</option><option value="failed">Ошибка отправки</option><option value="partial">Отправлены частично</option><option value="cancelled">Отменены</option></select></div><p id="archive-description" hidden>Опубликованные и отменённые записи выбранной площадки. Публикации в соцсети остаются на месте. Возврат в журнал не отправляет их повторно.</p><div class="plan-columns" id="plan-columns"><section class="platform-plan" aria-labelledby="telegram-plan-heading"><h3 id="telegram-plan-heading">Telegram <span id="telegram-count">0</span></h3><div id="telegram-posts" aria-live="polite"></div></section><section class="platform-plan" aria-labelledby="vk-plan-heading"><h3 id="vk-plan-heading">ВКонтакте <span id="vk-count">0</span></h3><small class="platform-note">Текст, фото JPG/PNG и видео MP4. Подключение — в разделе «Интеграции».</small><div id="vk-posts" aria-live="polite"></div></section></div><div id="posts" aria-live="polite" hidden></div></section>
 </div>
 <footer>VINP studio <span>Ваши файлы остаются в вашем хранилище.</span></footer>
 </main></body></html>

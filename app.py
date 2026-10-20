@@ -12,6 +12,7 @@ from pathlib import Path
 from urllib.parse import urlsplit
 
 import telegram
+import vk
 
 ROOT = Path(__file__).parent
 DATA = Path(os.environ.get('DATA_DIR', ROOT / 'data'))
@@ -29,6 +30,7 @@ def initialize():
     DATA.mkdir(parents=True, exist_ok=True)
     (DATA / 'media').mkdir(exist_ok=True)
     telegram.configure_storage(DATA)
+    vk.configure_storage(DATA)
     with connect() as db:
         db.executescript('''
         CREATE TABLE IF NOT EXISTS media (
@@ -82,6 +84,28 @@ def record_telegram_check(fingerprint, status):
                    (fingerprint, status, datetime.now(timezone.utc).isoformat()))
 
 
+def vk_fingerprint():
+    return hashlib.sha256(json.dumps(vk.credentials()).encode()).hexdigest()
+
+
+def vk_settings():
+    settings = vk.public_settings()
+    settings.update({'connection_status': 'unconfigured' if not settings['configured'] else 'unchecked', 'checked_at': None})
+    with connect() as db:
+        row = db.execute("SELECT * FROM integration_checks WHERE platform='vk'").fetchone()
+    if settings['configured'] and row and row['fingerprint'] == vk_fingerprint():
+        settings['checked_at'] = row['checked_at']
+        age = (datetime.now(timezone.utc) - datetime.fromisoformat(row['checked_at'])).total_seconds()
+        settings['connection_status'] = row['status'] if age < 86400 else 'stale'
+    return settings
+
+
+def record_vk_check(fingerprint, status):
+    with connect() as db:
+        db.execute("INSERT OR REPLACE INTO integration_checks VALUES ('vk',?,?,?)",
+                   (fingerprint, status, datetime.now(timezone.utc).isoformat()))
+
+
 def create_post(payload):
     preview_mode = payload.get('preview_mode', 'frame')
     if preview_mode not in ('frame', 'text'):
@@ -106,6 +130,9 @@ def create_post(payload):
         if 'telegram' in platforms:
             media = db.execute('SELECT * FROM media WHERE id=?', (media_id,)).fetchone() if media_id else None
             telegram.validate(body or title, dict(media) if media else None)
+        if 'vk' in platforms:
+            media = db.execute('SELECT * FROM media WHERE id=?', (media_id,)).fetchone() if media_id else None
+            vk.validate(body or title, dict(media) if media else None)
         post_id = uuid.uuid4().hex
         db.execute('INSERT INTO posts (id,title,text,scheduled_at,platforms,media_id,status,message,preview_mode) VALUES (?,?,?,?,?,?,?,?,?)',
                    (post_id, title, body, date.astimezone(timezone.utc).isoformat(),
@@ -126,21 +153,20 @@ def process_due(now=None):
         for platform in json.loads(post['platforms']):
             with connect() as db:
                 db.execute("INSERT OR IGNORE INTO deliveries(post_id,platform,status) VALUES (?,?,'sending')", (post['id'], platform))
-            state, message, message_id = 'blocked', 'ВК: интеграция ещё не подключена.', None
-            if platform == 'telegram':
-                if not telegram.configured():
-                    message = 'Telegram: публикация не отправлена — задайте токен бота и канал в настройках интеграции.'
-                else:
-                    try:
-                        with connect() as db:
-                            media = db.execute('SELECT * FROM media WHERE id=?', (post['media_id'],)).fetchone()
-                        options = {'preview_mode': 'text'} if post.get('preview_mode') == 'text' else {}
-                        message_id = telegram.send(post['text'] or post['title'], dict(media) if media else None, DATA / 'media', **options)
-                        state, message = 'sent', 'Telegram: отправлено.'
-                    except telegram.DeliveryError as error:
-                        state, message = 'failed', str(error)
-                    except Exception:
-                        state, message = 'failed', 'Telegram: неожиданный сбой. Проверьте канал перед повторной публикацией.'
+            adapter = telegram if platform == 'telegram' else vk
+            label = 'Telegram' if platform == 'telegram' else 'ВК'
+            state, message, message_id = 'blocked', label + ': публикация не отправлена — настройте интеграцию.', None
+            if adapter.configured():
+                try:
+                    with connect() as db:
+                        media = db.execute('SELECT * FROM media WHERE id=?', (post['media_id'],)).fetchone()
+                    options = ({'preview_mode':'text'} if post.get('preview_mode') == 'text' else {}) if platform == 'telegram' else {'title':post['title'],'guid':post['id']}
+                    message_id = adapter.send(post['text'] or post['title'], dict(media) if media else None, DATA / 'media', **options)
+                    state, message = 'sent', label + ': отправлено.'
+                except (telegram.DeliveryError,vk.DeliveryError) as error:
+                    state, message = 'failed', str(error)
+                except Exception:
+                    state, message = 'failed', label + ': неожиданный сбой. Проверьте публикацию перед повторной отправкой.'
             with connect() as db:
                 db.execute('UPDATE deliveries SET status=?,message=?,message_id=? WHERE post_id=? AND platform=?',
                            (state, message, message_id, post['id'], platform))
@@ -176,11 +202,16 @@ class Handler(BaseHTTPRequestHandler):
         if path == '/api/health':
             with connect() as db:
                 db.execute('SELECT 1 FROM posts LIMIT 1')
-            return self.reply(200, {'status': 'ok', 'delivery_enabled': telegram.configured()})
+            return self.reply(200, {'status': 'ok', 'delivery_enabled': telegram.configured() or vk.configured()})
         if path == '/api/telegram':
             try:
                 return self.reply(200, telegram_settings())
             except telegram.DeliveryError as exc:
+                return self.reply(500, {'error': str(exc)})
+        if path == '/api/vk':
+            try:
+                return self.reply(200, vk_settings())
+            except vk.DeliveryError as exc:
                 return self.reply(500, {'error': str(exc)})
         if path == '/api/posts':
             with connect() as db:
@@ -269,6 +300,26 @@ class Handler(BaseHTTPRequestHandler):
                     if fingerprint:
                         record_telegram_check(fingerprint, 'error')
                     return self.reply(400, {'error': str(error)})
+            if path == '/api/vk/settings':
+                if self.headers.get('Content-Type', '').split(';')[0].strip() != 'application/json':
+                    return self.reply(415, {'error': 'Ожидается application/json.'})
+                try:
+                    return self.reply(200, vk.save_settings(payload))
+                except OSError:
+                    return self.reply(500, {'error': 'Не удалось сохранить настройки. Проверьте доступ приложения к каталогу данных.'})
+                except vk.DeliveryError as exc:
+                    return self.reply(500, {'error': str(exc)})
+            if path == '/api/vk/check':
+                fingerprint = None
+                try:
+                    fingerprint = vk_fingerprint()
+                    result = vk.check()
+                    record_vk_check(fingerprint, 'verified')
+                    return self.reply(200, result)
+                except vk.DeliveryError as error:
+                    if fingerprint:
+                        record_vk_check(fingerprint, 'error')
+                    return self.reply(400, {'error': str(error)})
             if path == '/api/posts':
                 return self.reply(201, {'id': create_post(payload)})
             if path.startswith('/api/archive/') or path.startswith('/api/unarchive/'):
@@ -297,7 +348,7 @@ class Handler(BaseHTTPRequestHandler):
                 return self.reply(200 if result.rowcount else 404, {'updated': bool(result.rowcount)})
             self.reply(404, {'error': 'Не найдено'})
         except ValueError as exc:
-            message = str(exc) if str(exc).startswith('Telegram:') else 'Проверьте поля, дату публикации и выбранный файл.'
+            message = str(exc) if str(exc).startswith(('Telegram:', 'ВК:')) else 'Проверьте поля, дату публикации и выбранный файл.'
             self.reply(400, {'error': message})
         except (TypeError, AttributeError):
             self.reply(400, {'error': 'Проверьте поля, дату публикации и выбранный файл.'})

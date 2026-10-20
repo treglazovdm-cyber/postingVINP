@@ -121,7 +121,7 @@ $('#post-form').onsubmit=async e => {
   const button = $('#post-form button[type=submit]'); button.disabled=true;
   try {
     await api('/api/posts',{method:'POST',headers:{'Content-Type':'application/json'},body:JSON.stringify({title:fields.get('title'),text:fields.get('text'),platforms,preview_mode:$('#preview-mode').value,media_id:$('#media').value,scheduled_at:new Date(fields.get('date')).toISOString()})});
-    form.reset(); resetCover(); feedback('Запись добавлена. Telegram отправит её по расписанию, если подключён.'); await refresh();
+    form.reset(); resetCover(); feedback('Запись добавлена. Подключённые площадки отправят её по расписанию.'); await refresh();
   } catch(err) { feedback(err.message); }
   finally { button.disabled=false; }
 };
@@ -132,8 +132,8 @@ function paintConnection(data) {
   const descriptions = {verified:['✓ Подключение проверено','verified'],error:['✕ Ошибка проверки','error'],unchecked:['○ Требуется проверка','neutral'],unconfigured:['○ Не подключено','neutral'],stale:['○ Проверьте повторно','neutral']};
   const [label, style] = descriptions[data.connection_status] || descriptions.unchecked;
   $('#telegram-status').textContent = data.connection_status === 'verified'
-    ? '✓ Telegram: подключение проверено. ВК пока не подключён.'
-    : `Telegram: ${label.replace(/^[^А-Яа-я]+/, '')}. ВК пока не подключён.`;
+    ? '✓ Telegram: подключение проверено.'
+    : `Telegram: ${label.replace(/^[^А-Яа-я]+/, '')}.`;
   $('#telegram-badge').textContent = label;
   $('#telegram-badge').className = `connection-badge ${style}`;
   $('#telegram-checked-at').textContent = data.checked_at ? `Последняя проверка: ${new Date(data.checked_at).toLocaleString('ru-RU')}. Статус проверки действует 24 часа.` : '';
@@ -214,5 +214,59 @@ for (const field of ['#telegram-token','#telegram-chat']) {
   $(field).addEventListener('input', () => {
     $('#telegram-badge').textContent = '○ Есть несохранённые изменения';
     $('#telegram-badge').className = 'connection-badge neutral';
+  });
+}
+
+function paintVkConnection(data) {
+  const descriptions = {verified:['✓ Подключение проверено','verified'],error:['✕ Ошибка проверки','error'],unchecked:['○ Требуется проверка','neutral'],unconfigured:['○ Не подключено','neutral'],stale:['○ Проверьте повторно','neutral']};
+  const [label, style] = descriptions[data.connection_status] || descriptions.unchecked;
+  $('#vk-status').textContent = data.connection_status === 'verified'
+    ? '✓ ВК: подключение проверено.'
+    : `ВК: ${label.replace(/^[^А-Яа-я]+/, '')}.`;
+  $('#vk-badge').textContent = label;
+  $('#vk-badge').className = `connection-badge ${style}`;
+  $('#vk-checked-at').textContent = data.checked_at ? `Последняя проверка: ${new Date(data.checked_at).toLocaleString('ru-RU')}. Статус проверки действует 24 часа.` : '';
+}
+async function refreshVkConnection() {
+  try { paintVkConnection(await api('/api/vk')); }
+  catch(e) { paintVkConnection({connection_status:'error'}); }
+}
+async function vkStatus() {
+  const data = await api('/api/vk');
+  paintVkConnection(data);
+  $('#vk-group').value = data.group_id || '';
+  $('#vk-token').required = !data.token_saved;
+  $('#vk-token-hint').textContent = data.token_saved
+    ? 'Токен сохранён. Оставьте поле пустым, чтобы сохранить текущий, или введите новый.'
+    : 'Введите пользовательский токен ВК с правами wall, photos и video.';
+}
+$('#vk-check').onclick = async () => {
+  const button = $('#vk-check'); button.disabled = true; $('#vk-save').disabled = true;
+  try {
+    const result = await api('/api/vk/check', {method:'POST',body:'{}',headers:{'Content-Type':'application/json'}});
+    $('#vk-result').textContent = result.message;
+  } catch(e) { $('#vk-result').textContent = e.message; }
+  finally { await refreshVkConnection(); button.disabled = false; $('#vk-save').disabled = false; }
+};
+vkStatus().catch(e => { $('#vk-status').textContent = e.message; });
+
+$('#vk-form').onsubmit = async e => {
+  e.preventDefault();
+  const button = $('#vk-save'); button.disabled = true;
+  $('#vk-check').disabled = true;
+  try {
+    await api('/api/vk/settings', {method:'POST', headers:{'Content-Type':'application/json'}, body:JSON.stringify({token:$('#vk-token').value, group_id:$('#vk-group').value})});
+    $('#vk-token').value = '';
+    await vkStatus();
+    $('#vk-result').textContent = 'Настройки сохранены. Теперь проверьте подключение. Сообщения не отправлялись.';
+  } catch(e) { $('#vk-result').textContent = e.message; }
+  finally { button.disabled = false; $('#vk-check').disabled = false; }
+};
+
+setInterval(refreshVkConnection,60000);
+for (const field of ['#vk-token','#vk-group']) {
+  $(field).addEventListener('input', () => {
+    $('#vk-badge').textContent = '○ Есть несохранённые изменения';
+    $('#vk-badge').className = 'connection-badge neutral';
   });
 }
