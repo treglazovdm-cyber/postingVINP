@@ -107,6 +107,17 @@ class PlannerTests(unittest.TestCase):
         status, _ = self.request('POST', '/api/telegram/settings', payload, {'Content-Type': 'text/plain'})
         self.assertEqual(status, 415)
 
+    def test_cover_endpoint_and_saved_selection(self):
+        status, image = self.request('POST','/api/preview',json.dumps({'text':'Упражнения для пресса'}).encode())
+        self.assertEqual(status, 200)
+        self.assertTrue(image.startswith(b'\xff\xd8'))
+        status, _ = self.request('POST','/api/preview','{"text":""}')
+        self.assertEqual(status, 400)
+        post_id = app.create_post(self.payload(preview_mode='text'))
+        app.initialize()
+        with app.connect() as db:
+            self.assertEqual(db.execute('SELECT preview_mode FROM posts WHERE id=?',(post_id,)).fetchone()[0], 'text')
+
 
 if __name__ == '__main__':
     unittest.main()

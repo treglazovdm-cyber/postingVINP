@@ -33,7 +33,7 @@ class TelegramTests(unittest.TestCase):
                     (app.DATA / 'media' / 'test').write_bytes(b'file-bytes')
                     media = {'id': 'test', 'name': filename, 'size': 10}
                 response = io.BytesIO(json.dumps({'ok': True, 'result': {'message_id': 42}}).encode())
-                with patch('telegram.request.urlopen', return_value=response) as fetch:
+                with patch('telegram.video.prepare', return_value=(app.DATA / 'media' / 'test', app.DATA / 'media' / 'test', {'duration': 3, 'width': 160, 'height': 120, 'supports_streaming': 'true'})), patch('telegram.request.urlopen', return_value=response) as fetch:
                     self.assertEqual(telegram.send('Привет', media, app.DATA / 'media'), 42)
                     req = fetch.call_args.args[0]
                     self.assertTrue(req.full_url.endswith('/' + method))
@@ -41,6 +41,9 @@ class TelegramTests(unittest.TestCase):
                     if field:
                         self.assertIn(f'name="{field}"'.encode(), req.data)
                         self.assertIn(b'file-bytes', req.data)
+                        if method == 'sendVideo':
+                            self.assertIn(b'name="thumbnail"', req.data)
+                            self.assertIn(b'name="duration"\r\n\r\n3', req.data)
                     else:
                         self.assertEqual(json.loads(req.data)['text'], 'Привет')
 
@@ -106,3 +109,15 @@ class TelegramTests(unittest.TestCase):
             with self.assertRaises(ValueError):
                 telegram.save_settings(changes)
             self.assertEqual(telegram.credentials(), (token, '@test_channel'))
+
+    def test_video_text_cover_is_attached_to_send_video(self):
+        path = app.DATA / 'media' / 'test'
+        path.write_bytes(b'video')
+        thumbnail = app.DATA / 'cover.jpg'
+        thumbnail.write_bytes(b'generated-cover')
+        with patch('telegram.video.prepare', return_value=(path,path,{'duration':3,'width':160,'height':120})), patch('telegram.video.text_cover', return_value=thumbnail) as generate, patch('telegram.request.urlopen', return_value=io.BytesIO(b'{"ok":true,"result":{"message_id":99}}')) as fetch:
+            self.assertEqual(telegram.send('Text cover',{'id':'test','name':'movie.mp4','size':5},app.DATA / 'media',preview_mode='text'),99)
+            generate.assert_called_once()
+            self.assertEqual(generate.call_args.args[0],'Text cover')
+            self.assertIn(b'generated-cover',fetch.call_args.args[0].data)
+            self.assertIn(b'name="thumbnail"',fetch.call_args.args[0].data)

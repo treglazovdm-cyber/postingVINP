@@ -42,9 +42,14 @@ def initialize():
           message TEXT NOT NULL DEFAULT '', message_id INTEGER,
           PRIMARY KEY(post_id, platform));
         ''')
+        if 'preview_mode' not in [row['name'] for row in db.execute('PRAGMA table_info(posts)')]:
+            db.execute("ALTER TABLE posts ADD COLUMN preview_mode TEXT NOT NULL DEFAULT 'frame'")
 
 
 def create_post(payload):
+    preview_mode = payload.get('preview_mode', 'frame')
+    if preview_mode not in ('frame', 'text'):
+        raise ValueError('Неверный тип обложки.')
     title = str(payload.get('title', '')).strip()
     body = str(payload.get('text', '')).strip()
     platforms = payload.get('platforms', [])
@@ -66,9 +71,9 @@ def create_post(payload):
             media = db.execute('SELECT * FROM media WHERE id=?', (media_id,)).fetchone() if media_id else None
             telegram.validate(body or title, dict(media) if media else None)
         post_id = uuid.uuid4().hex
-        db.execute('INSERT INTO posts VALUES (?,?,?,?,?,?,?,?)',
+        db.execute('INSERT INTO posts (id,title,text,scheduled_at,platforms,media_id,status,message,preview_mode) VALUES (?,?,?,?,?,?,?,?,?)',
                    (post_id, title, body, date.astimezone(timezone.utc).isoformat(),
-                    json.dumps(platforms), media_id, 'scheduled', ''))
+                    json.dumps(platforms), media_id, 'scheduled', '', preview_mode))
     return post_id
 
 
@@ -93,7 +98,8 @@ def process_due(now=None):
                     try:
                         with connect() as db:
                             media = db.execute('SELECT * FROM media WHERE id=?', (post['media_id'],)).fetchone()
-                        message_id = telegram.send(post['text'] or post['title'], dict(media) if media else None, DATA / 'media')
+                        options = {'preview_mode': 'text'} if post.get('preview_mode') == 'text' else {}
+                        message_id = telegram.send(post['text'] or post['title'], dict(media) if media else None, DATA / 'media', **options)
                         state, message = 'sent', 'Telegram: отправлено.'
                     except telegram.DeliveryError as error:
                         state, message = 'failed', str(error)
@@ -192,6 +198,18 @@ class Handler(BaseHTTPRequestHandler):
             payload = json.loads(self.rfile.read(size))
             if not isinstance(payload, dict):
                 raise ValueError('Ожидается объект JSON.')
+            if path == '/api/preview':
+                import tempfile
+                import video
+                text = payload.get('text', '')
+                if not isinstance(text, str) or not text.strip() or len(text) > 10000:
+                    return self.reply(400, {'error': 'Введите текст поста или название для обложки.'})
+                try:
+                    with tempfile.TemporaryDirectory(prefix='vinp-cover-') as temporary:
+                        cover = video.text_cover(text, Path(temporary))
+                        return self.reply(200, cover.read_bytes(), 'image/jpeg')
+                except video.VideoError as exc:
+                    return self.reply(400, {'error': str(exc)})
             if path == '/api/telegram/settings':
                 if self.headers.get('Content-Type', '').split(';')[0].strip() != 'application/json':
                     return self.reply(415, {'error': 'Ожидается application/json.'})

@@ -22,6 +22,8 @@
 <section class="editor"><h2>Новая публикация</h2><form id="post-form">
 <label>Название<input name="title" required maxlength="200" placeholder="Например, новый выпуск о мастерской"></label>
 <label>Текст публикации<textarea name="text" maxlength="10000" rows="5" placeholder="О чём расскажем подписчикам?"></textarea></label>
+<label>Обложка видео Telegram<select name="preview_mode" id="preview-mode"><option value="frame">Кадр из видео — автоматически</option><option value="text">Обложка из текста поста</option></select></label>
+<div id="cover-tools" hidden><small>Оформленная обложка с началом текста поста. Это не ИИ-иллюстрация. Применяется только к MP4 в Telegram.</small><button type="button" id="generate-cover">Сгенерировать превью</button><p id="cover-result" role="status"></p><img id="cover-image" alt="Предпросмотр обложки видео" width="320" height="180" hidden></div>
 <fieldset><legend>Площадки</legend><div class="platforms"><label><input type="checkbox" name="platform" value="vk">ВКонтакте</label><label><input type="checkbox" name="platform" value="telegram">Telegram</label></div><small>YouTube и Instagram — на следующих этапах.</small></fieldset>
 <label>Медиафайл<select id="media"><option value="">Без файла</option></select></label>
 <label class="upload">Загрузить фото или видео <input type="file" id="upload" accept="image/*,video/*"><small>Один файл на публикацию · до 100 МБ; Telegram — до 49 МБ, фото до 10 МБ</small></label>

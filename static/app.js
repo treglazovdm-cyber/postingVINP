@@ -69,8 +69,8 @@ $('#post-form').onsubmit=async e => {
   if(!platforms.length) return feedback('Выберите хотя бы одну площадку.');
   const button = $('#post-form button[type=submit]'); button.disabled=true;
   try {
-    await api('/api/posts',{method:'POST',headers:{'Content-Type':'application/json'},body:JSON.stringify({title:fields.get('title'),text:fields.get('text'),platforms,media_id:$('#media').value,scheduled_at:new Date(fields.get('date')).toISOString()})});
-    form.reset(); feedback('Запись добавлена. Telegram отправит её по расписанию, если подключён.'); await refresh();
+    await api('/api/posts',{method:'POST',headers:{'Content-Type':'application/json'},body:JSON.stringify({title:fields.get('title'),text:fields.get('text'),platforms,preview_mode:$('#preview-mode').value,media_id:$('#media').value,scheduled_at:new Date(fields.get('date')).toISOString()})});
+    form.reset(); resetCover(); feedback('Запись добавлена. Telegram отправит её по расписанию, если подключён.'); await refresh();
   } catch(err) { feedback(err.message); }
   finally { button.disabled=false; }
 };
@@ -109,4 +109,30 @@ $('#telegram-form').onsubmit = async e => {
     $('#telegram-result').textContent = 'Настройки сохранены. Теперь проверьте подключение. Сообщения не отправлялись.';
   } catch(e) { $('#telegram-result').textContent = e.message; }
   finally { button.disabled = false; $('#telegram-check').disabled = false; }
+};
+
+let coverUrl;
+function resetCover() {
+  if (coverUrl) URL.revokeObjectURL(coverUrl);
+  coverUrl = null;
+  $('#cover-image').hidden = true;
+  $('#cover-image').removeAttribute('src');
+  $('#cover-result').textContent = '';
+  $('#cover-tools').hidden = $('#preview-mode').value !== 'text';
+}
+$('#preview-mode').onchange = resetCover;
+$('#post-form textarea[name=text]').addEventListener('input', resetCover);
+$('#post-form input[name=title]').addEventListener('input', resetCover);
+$('#generate-cover').onclick = async () => {
+  const button = $('#generate-cover'); button.disabled = true;
+  try {
+    const text = $('#post-form textarea[name=text]').value.trim() || $('#post-form input[name=title]').value.trim();
+    const response = await fetch('/api/preview', {method:'POST', headers:{'Content-Type':'application/json'}, body:JSON.stringify({text})});
+    if (!response.ok) throw new Error((await response.json()).error);
+    const image = await response.blob();
+    resetCover(); coverUrl = URL.createObjectURL(image);
+    $('#cover-image').src = coverUrl; $('#cover-image').hidden = false;
+    $('#cover-result').textContent = 'Превью готово. При публикации обложка будет создана из сохранённого текста.';
+  } catch(e) { $('#cover-result').textContent = e.message; }
+  finally { button.disabled = false; }
 };

@@ -8,6 +8,8 @@ import uuid
 from pathlib import Path
 from urllib import request, error
 
+import video
+
 _settings_path = None
 _settings_lock = threading.RLock()
 
@@ -91,18 +93,20 @@ def validate(text, media=None):
         raise ValueError('Telegram: фото должно быть не более 10 МБ.')
 
 
-def api(method, fields, upload=None, account=None):
+def api(method, fields, upload=None, account=None, extra_uploads=()):
     token, chat = account or credentials()
     if not token or not chat:
         raise DeliveryError('Telegram: токен бота или канал не настроены.')
     if upload:
-        field, path, extension = upload
         boundary = 'vinp' + uuid.uuid4().hex
         parts = []
         for key, value in fields.items():
             parts.append(f'--{boundary}\r\nContent-Disposition: form-data; name="{key}"\r\n\r\n{value}\r\n'.encode())
-        parts.append(f'--{boundary}\r\nContent-Disposition: form-data; name="{field}"; filename="media{extension}"\r\nContent-Type: application/octet-stream\r\n\r\n'.encode())
-        parts.extend([path.read_bytes(), f'\r\n--{boundary}--\r\n'.encode()])
+        for field, path, extension in (upload, *extra_uploads):
+            mime = 'image/jpeg' if extension == '.jpg' else 'video/mp4' if extension == '.mp4' else 'application/octet-stream'
+            parts.append(f'--{boundary}\r\nContent-Disposition: form-data; name="{field}"; filename="{field}{extension}"\r\nContent-Type: {mime}\r\n\r\n'.encode())
+            parts.extend([path.read_bytes(), b'\r\n'])
+        parts.append(f'--{boundary}--\r\n'.encode())
         body, content_type = b''.join(parts), f'multipart/form-data; boundary={boundary}'
     else:
         body, content_type = json.dumps(fields).encode(), 'application/json'
@@ -132,7 +136,7 @@ def check():
     return {'ok': True, 'bot_username': bot.get('username', ''), 'message': 'Бот имеет право публикации в канале. Тестовое сообщение не отправлялось.'}
 
 
-def send(text, media, directory):
+def send(text, media, directory, preview_mode='frame'):
     validate(text, media)
     account = credentials()
     fields = {'chat_id': account[1]}
@@ -145,7 +149,19 @@ def send(text, media, directory):
         fields['caption'] = text
         # Only a short extension is used in multipart headers, never an original filename.
         extension = suffix if suffix in {'.jpg', '.jpeg', '.png', '.mp4', '.pdf', '.gif', '.webp'} else '.bin'
-        result = api(method, fields, (field, directory / media['id'], extension), account=account)
+        if method == 'sendVideo':
+            with tempfile.TemporaryDirectory(prefix='vinp-video-') as temporary:
+                try:
+                    ready, thumbnail, metadata = video.prepare(directory / media['id'], Path(temporary))
+                    if preview_mode == 'text':
+                        thumbnail = video.text_cover(text, Path(temporary))
+                except video.VideoError as exc:
+                    raise DeliveryError('Telegram: ' + str(exc)) from None
+                fields.update(metadata)
+                result = api(method, fields, (field, ready, extension), account=account,
+                             extra_uploads=(('thumbnail', thumbnail, '.jpg'),))
+        else:
+            result = api(method, fields, (field, directory / media['id'], extension), account=account)
     if not isinstance(result, dict) or not isinstance(result.get('message_id'), int):
         raise DeliveryError('Telegram: нет подтверждения доставки. Проверьте канал перед повторной публикацией.')
     return result['message_id']
